@@ -27,6 +27,19 @@ const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 const useCases = new AttendanceUseCases(SUPABASE_URL, SUPABASE_KEY);
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
 /**
  * Error handler helper
  */
@@ -54,10 +67,7 @@ export async function recordPunch(req: Request): Promise<Response> {
   try {
     // Validar método
     if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ error: 'Method not allowed' }),
-        { status: 405 }
-      );
+      return jsonResponse({ error: 'Method not allowed' }, 405);
     }
 
     // Parsear body
@@ -65,23 +75,17 @@ export async function recordPunch(req: Request): Promise<Response> {
 
     // Validar entrada
     if (!body.idEmpleado || !body.timestamp || !body.direction) {
-      return new Response(
-        JSON.stringify({
-          error: 'Missing required fields',
-          details: { required: ['idEmpleado', 'timestamp', 'direction'] },
-        }),
-        { status: 400 }
-      );
+      return jsonResponse({
+        error: 'Missing required fields',
+        details: { required: ['idEmpleado', 'timestamp', 'direction'] },
+      }, 400);
     }
 
     if (!['IN', 'OUT'].includes(body.direction)) {
-      return new Response(
-        JSON.stringify({
-          error: 'Invalid direction',
-          details: { valid: ['IN', 'OUT'] },
-        }),
-        { status: 400 }
-      );
+      return jsonResponse({
+        error: 'Invalid direction',
+        details: { valid: ['IN', 'OUT'] },
+      }, 400);
     }
 
     // Obtener user ID del token (simplificado)
@@ -104,13 +108,10 @@ export async function recordPunch(req: Request): Promise<Response> {
       warnings: result.warnings,
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(response);
   } catch (error) {
     const err = errorResponse(error, 400);
-    return new Response(JSON.stringify(err.body), { status: err.status });
+    return jsonResponse(err.body, err.status);
   }
 }
 
@@ -132,19 +133,13 @@ export async function getDayInterpretation(req: Request): Promise<Response> {
 
     // Validar
     if (isNaN(employeeId) || !dateStr) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid employee ID or date' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Invalid employee ID or date' }, 400);
     }
 
     // Parsear fecha
     const workDate = new Date(dateStr);
     if (isNaN(workDate.getTime())) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid date format. Use YYYY-MM-DD' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Invalid date format. Use YYYY-MM-DD' }, 400);
     }
 
     // Ejecutar use case
@@ -160,13 +155,10 @@ export async function getDayInterpretation(req: Request): Promise<Response> {
       schedule: result.schedule || undefined,
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(response);
   } catch (error) {
     const err = errorResponse(error, 400);
-    return new Response(JSON.stringify(err.body), { status: err.status });
+    return jsonResponse(err.body, err.status);
   }
 }
 
@@ -188,17 +180,11 @@ export async function getMonthInterpretations(req: Request): Promise<Response> {
 
     // Validar
     if (isNaN(employeeId) || !month) {
-      return new Response(
-        JSON.stringify({ error: 'Missing employee ID or month parameter' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Missing employee ID or month parameter' }, 400);
     }
 
     if (!/^\d{4}-\d{2}$/.test(month)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid month format. Use YYYY-MM' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Invalid month format. Use YYYY-MM' }, 400);
     }
 
     // Ejecutar use case
@@ -210,13 +196,10 @@ export async function getMonthInterpretations(req: Request): Promise<Response> {
       summary: result.summary,
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(response);
   } catch (error) {
     const err = errorResponse(error, 400);
-    return new Response(JSON.stringify(err.body), { status: err.status });
+    return jsonResponse(err.body, err.status);
   }
 }
 
@@ -232,10 +215,7 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
   try {
     // Validar método
     if (req.method !== 'PUT') {
-      return new Response(
-        JSON.stringify({ error: 'Method not allowed' }),
-        { status: 405 }
-      );
+      return jsonResponse({ error: 'Method not allowed' }, 405);
     }
 
     // Parsear URL
@@ -246,10 +226,7 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
 
     // Validar
     if (isNaN(scheduleId)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid schedule ID' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Invalid schedule ID' }, 400);
     }
 
     // Parsear body
@@ -257,10 +234,7 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
 
     // Validar entrada
     if (!body.mode) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required field: mode' }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: 'Missing required field: mode' }, 400);
     }
 
     // Obtener user ID del token
@@ -271,12 +245,7 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
     if (reprocessFromStr) {
       reprocessFromDate = new Date(reprocessFromStr);
       if (isNaN(reprocessFromDate.getTime())) {
-        return new Response(
-          JSON.stringify({
-            error: 'Invalid reprocessFrom date. Use YYYY-MM-DD',
-          }),
-          { status: 400 }
-        );
+        return jsonResponse({ error: 'Invalid reprocessFrom date. Use YYYY-MM-DD' }, 400);
       }
     }
 
@@ -296,13 +265,10 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
       affectedEmployees: result.affectedEmployees,
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(response);
   } catch (error) {
     const err = errorResponse(error, 400);
-    return new Response(JSON.stringify(err.body), { status: err.status });
+    return jsonResponse(err.body, err.status);
   }
 }
 /**
@@ -343,13 +309,10 @@ export async function getPunches(req: Request): Promise<Response> {
       };
     });
 
-    return new Response(JSON.stringify(mapped), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(mapped);
   } catch (error) {
     const err = errorResponse(error, 500);
-    return new Response(JSON.stringify(err.body), { status: err.status });
+    return jsonResponse(err.body, err.status);
   }
 }
 
@@ -385,10 +348,7 @@ export async function handleRequest(req: Request, cleanPath: string): Promise<Re
   }
 
   // 404
-  return new Response(
-    JSON.stringify({ error: 'Not found in attendance routes' }),
-    { status: 404 }
-  );
+  return jsonResponse({ error: 'Not found in attendance routes' }, 404);
 }
 
 // Export handler for Supabase Functions

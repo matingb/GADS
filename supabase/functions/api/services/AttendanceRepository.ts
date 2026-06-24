@@ -81,10 +81,15 @@ export class AttendanceRepository {
     employeeId: number,
     workDate: Date
   ): Promise<PunchEvent[]> {
-    const nextDay = new Date(workDate);
-    nextDay.setDate(nextDay.getDate() + 1);
+    // Construir rango en hora local Argentina (UTC-3) para no cortar jornadas nocturnas.
+    // Un día laboral en ART va de 00:00-03:00 a 23:59-03:00 (= 03:00 UTC a 02:59 UTC siguiente día).
+    const dateStr = workDate.toLocaleDateString('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+    });
+    const dayStart = new Date(`${dateStr}T00:00:00-03:00`);
+    const dayEnd = new Date(`${dateStr}T23:59:59-03:00`);
 
-    return this.getPunchEvents(employeeId, workDate, nextDay);
+    return this.getPunchEvents(employeeId, dayStart, dayEnd);
   }
 
   // =========================================================================
@@ -365,9 +370,7 @@ export class AttendanceRepository {
   async getEmployeeScheduleForDate(
     employeeId: number,
     workDate: Date
-  ): Promise<{ idHorario: number; horaEntrada: string | null; horaSalida: string | null } | null> {
-    const dayOfWeek = workDate.getDay();
-
+  ): Promise<{ idHorario: number; horaEntrada: string | null; horaSalida: string | null; esDescanso: boolean } | null> {
     const { data, error } = await this.client
       .rpc('get_employee_schedule', {
         p_id_empleado: employeeId,
@@ -386,6 +389,7 @@ export class AttendanceRepository {
       idHorario: row.id_horario,
       horaEntrada: row.hora_entrada,
       horaSalida: row.hora_salida,
+      esDescanso: row.es_descanso ?? false,
     };
   }
 

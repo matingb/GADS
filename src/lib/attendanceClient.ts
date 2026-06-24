@@ -81,7 +81,7 @@ export const attendanceApi = {
       metadata,
     };
 
-    return api.post<RecordPunchResponse>('/api/punch', payload);
+    return api.post<RecordPunchResponse>('/punch', payload);
   },
 
   /**
@@ -102,7 +102,7 @@ export const attendanceApi = {
       : workDate.toISOString().split('T')[0];
 
     return api.get<GetDayInterpretationResponse>(
-      `/api/attendance/${employeeId}/${dateStr}`
+      `/attendance/${employeeId}/${dateStr}`
     );
   },
 
@@ -116,7 +116,7 @@ export const attendanceApi = {
     yearMonth: string // YYYY-MM
   ): Promise<GetMonthInterpretationsResponse> {
     return api.get<GetMonthInterpretationsResponse>(
-      `/api/attendance/${employeeId}`,
+      `/attendance/${employeeId}`,
       { month: yearMonth }
     );
   },
@@ -168,7 +168,7 @@ export const attendanceApi = {
     }
 
     return api.put<UpdateBreakPolicyResponse>(
-      `/api/break-policies/${scheduleId}`,
+      `/break-policies/${scheduleId}`,
       policy,
       params
     );
@@ -182,7 +182,7 @@ export const attendanceApi = {
     policy: CreateBreakPolicyDTO
   ): Promise<BreakPolicy> {
     return api.post<BreakPolicy>(
-      `/api/break-policies/${scheduleId}`,
+      `/break-policies/${scheduleId}`,
       policy
     );
   },

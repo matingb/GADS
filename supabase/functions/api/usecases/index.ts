@@ -5,9 +5,9 @@
  * para implementar casos de uso de negocio
  */
 
-import { AttendanceEngine } from './services/AttendanceEngine.ts';
-import { AttendanceRepository } from './services/AttendanceRepository.ts';
-import { BreakPolicyService } from './services/BreakPolicyService.ts';
+import { AttendanceEngine } from '../services/AttendanceEngine.ts';
+import { AttendanceRepository } from '../services/AttendanceRepository.ts';
+import { BreakPolicyService } from '../services/BreakPolicyService.ts';
 import type { PunchEvent, InterpretationResult, BreakPolicy } from '../../../src/types.ts';
 
 export class AttendanceUseCases {
@@ -90,6 +90,11 @@ export class AttendanceUseCases {
     if (!schedule) {
       warnings.push('No schedule found for this employee on this date');
       // Continuar con horario vacío
+    }
+
+    if (schedule?.esDescanso) {
+      warnings.push('Punch recorded on a rest day — no interpretation generated');
+      return { event: savedEvent, interpretation: null as any, warnings };
     }
 
     // Obtener política vigente
@@ -280,8 +285,8 @@ export class AttendanceUseCases {
         workDate
       );
 
-      if (!schedule) {
-        continue; // Saltar si no hay horario
+      if (!schedule || schedule.esDescanso) {
+        continue; // Saltar si no hay horario o es día de descanso
       }
 
       // Obtener política vigente
@@ -385,7 +390,11 @@ export class AttendanceUseCases {
     const grouped = new Map<string, PunchEvent[]>();
 
     for (const event of events) {
-      const date = event.timestamp.split('T')[0]; // YYYY-MM-DD
+      // Usar fecha local Argentina, no UTC, para evitar que eventos nocturnos
+      // (ej: salida 22:00 ART = 01:00 UTC siguiente día) caigan en el día equivocado.
+      const date = new Date(event.timestamp).toLocaleDateString('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+      });
       if (!grouped.has(date)) {
         grouped.set(date, []);
       }

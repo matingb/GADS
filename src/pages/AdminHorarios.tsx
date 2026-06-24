@@ -71,8 +71,8 @@ export default function AdminHorarios() {
     maxMinutes: 90,
     expectedStart: '12:00',
     expectedEnd: '13:00',
-    earlyTolerance: 15,
-    lateTolerance: 15,
+    startTolerance: 15,
+    endTolerance: 15,
     allowContinuousShift: false,
   });
 
@@ -129,8 +129,8 @@ export default function AdminHorarios() {
       maxMinutes: 90,
       expectedStart: '12:00',
       expectedEnd: '13:00',
-      earlyTolerance: 15,
-      lateTolerance: 15,
+      startTolerance: 15,
+      endTolerance: 15,
       allowContinuousShift: false,
     });
   };
@@ -488,16 +488,16 @@ export default function AdminHorarios() {
               <div className="grid grid-cols-2 gap-4">
                 <NumberField
                   label="Tolerancia inicio (min)"
-                  value={breakPolicyForm.earlyTolerance}
+                  value={breakPolicyForm.startTolerance}
                   onChange={(v) =>
-                    setBreakPolicyForm((f) => ({ ...f, earlyTolerance: v }))
+                    setBreakPolicyForm((f) => ({ ...f, startTolerance: v }))
                   }
                 />
                 <NumberField
                   label="Tolerancia fin (min)"
-                  value={breakPolicyForm.lateTolerance}
+                  value={breakPolicyForm.endTolerance}
                   onChange={(v) =>
-                    setBreakPolicyForm((f) => ({ ...f, lateTolerance: v }))
+                    setBreakPolicyForm((f) => ({ ...f, endTolerance: v }))
                   }
                 />
               </div>

@@ -44,6 +44,24 @@ function json(data: JsonValue, status = 200): Response {
   });
 }
 
+/**
+ * Garantiza headers CORS en CUALQUIER respuesta, incluidas las que devuelven
+ * handlers importados (routes.ts). En el runtime de Supabase, los headers CORS
+ * solo se emiten de forma fiable cuando el Response final se construye en el
+ * modulo del Deno.serve, por eso reconstruimos la respuesta aqui.
+ */
+function withCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 function error(message: string, status = 400): Response {
   return json({ error: message }, status);
 }
@@ -1194,7 +1212,7 @@ Deno.serve(async (req) => {
     if (req.method === "GET" && path === "/dashboard") return await getDashboard();
 
     if (path.startsWith("/punch") || path.startsWith("/attendance") || path.startsWith("/break-policies")) {
-      return await handleAttendanceRequest(req, path);
+      return withCors(await handleAttendanceRequest(req, path));
     }
 
     return error("Ruta no encontrada.", 404);

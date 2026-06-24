@@ -99,21 +99,25 @@ export class AttendanceEngine {
   }
 
   /**
-   * Filtrar eventos del día especificado y ordenar cronológicamente
+   * Filtrar eventos del día especificado y ordenar cronológicamente.
+   * Compara por fecha local Argentina (UTC-3) para evitar que eventos
+   * nocturnos (ej: salida 22:00 ART = 01:00 UTC siguiente día) se
+   * atribuyan al día equivocado.
    */
   private filterAndSortEvents(events: PunchEvent[], workDate: Date): PunchEvent[] {
-    const dayStart = new Date(workDate);
-    dayStart.setUTCHours(0, 0, 0, 0);
-
-    const dayEnd = new Date(workDate);
-    dayEnd.setUTCHours(23, 59, 59, 999);
+    const workDateStr = this.formatDate(workDate); // YYYY-MM-DD en UTC (fecha laboral)
 
     return events
       .filter((e) => {
-        const eventTime = new Date(e.timestamp);
-        return eventTime >= dayStart && eventTime <= dayEnd;
+        const localDate = this.toArgentinaDateStr(new Date(e.timestamp));
+        return localDate === workDateStr;
       })
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }
+
+  /** Convierte un Date a YYYY-MM-DD en zona horaria America/Argentina/Buenos_Aires */
+  private toArgentinaDateStr(date: Date): string {
+    return date.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
   }
 
   /**
@@ -603,7 +607,8 @@ export class AttendanceEngine {
   }
 
   /**
-   * Verificar si evento está dentro tolerancia
+   * Verificar si evento está dentro tolerancia.
+   * expectedTime es HH:mm en hora local Argentina; eventTime es UTC.
    */
   private isEventWithinTolerance(
     eventTime: Date,
@@ -611,18 +616,11 @@ export class AttendanceEngine {
     toleranceMinutes: number,
     direction: 'before' | 'after' = 'before'
   ): boolean {
-    const [expHour, expMin] = expectedTime.split(':').map(Number);
-    const expectedDate = new Date(eventTime);
-    expectedDate.setUTCHours(expHour, expMin, 0, 0);
-
-    const diffMs = eventTime.getTime() - expectedDate.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffMins = this.diffFromScheduleTime(eventTime, expectedTime);
 
     if (direction === 'before') {
-      // Entrada: puede ser hasta tolerancia minutos después
       return diffMins <= toleranceMinutes;
     } else {
-      // Salida: puede ser hasta tolerancia minutos antes
       return diffMins >= -toleranceMinutes;
     }
   }
@@ -631,28 +629,31 @@ export class AttendanceEngine {
    * Calcular minutos de tardanza
    */
   private calculateLateness(eventTime: Date, expectedTime: string): number {
-    const [expHour, expMin] = expectedTime.split(':').map(Number);
-    const expectedDate = new Date(eventTime);
-    expectedDate.setUTCHours(expHour, expMin, 0, 0);
-
-    const diffMs = eventTime.getTime() - expectedDate.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-
-    return Math.max(0, diffMins);
+    return Math.max(0, this.diffFromScheduleTime(eventTime, expectedTime));
   }
 
   /**
    * Calcular minutos de salida anticipada
    */
   private calculateEarlyExit(eventTime: Date, expectedTime: string): number {
-    const [expHour, expMin] = expectedTime.split(':').map(Number);
-    const expectedDate = new Date(eventTime);
-    expectedDate.setUTCHours(expHour, expMin, 0, 0);
+    return Math.max(0, -this.diffFromScheduleTime(eventTime, expectedTime));
+  }
 
-    const diffMs = expectedDate.getTime() - eventTime.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
+  /**
+   * Diferencia en minutos entre un evento UTC y una hora de horario HH:mm local Argentina.
+   * Positivo = el evento ocurrió después del horario esperado.
+   */
+  private diffFromScheduleTime(eventTime: Date, scheduleTime: string): number {
+    const [expHour, expMin] = scheduleTime.split(':').map(Number);
 
-    return Math.max(0, diffMins);
+    // Obtener la fecha en Argentina para construir el instante esperado
+    const argDateStr = this.toArgentinaDateStr(eventTime); // YYYY-MM-DD
+    // Construir el instante esperado como hora local Argentina → UTC
+    const expectedDate = new Date(
+      `${argDateStr}T${String(expHour).padStart(2, '0')}:${String(expMin).padStart(2, '0')}:00-03:00`
+    );
+
+    return Math.floor((eventTime.getTime() - expectedDate.getTime()) / (1000 * 60));
   }
 
   /**
@@ -667,21 +668,15 @@ export class AttendanceEngine {
       return true;
     }
 
-    const [expStartHour, expStartMin] = policy.expectedStart.split(':').map(Number);
-    const [expEndHour, expEndMin] = policy.expectedEnd.split(':').map(Number);
+    const argDateStr = this.toArgentinaDateStr(breakStart);
 
-    const windowStart = new Date(breakStart);
-    windowStart.setUTCHours(expStartHour, expStartMin, 0, 0);
+    const windowStart = new Date(`${argDateStr}T${policy.expectedStart}:00-03:00`);
+    const windowEnd = new Date(`${argDateStr}T${policy.expectedEnd}:00-03:00`);
 
-    const windowEnd = new Date(breakEnd);
-    windowEnd.setUTCHours(expEndHour, expEndMin, 0, 0);
-
-    // El descanso debe empezar en o después del inicio esperado (considerando tolerancia)
     const startOk = breakStart >= new Date(
       windowStart.getTime() - policy.startTolerance * 60 * 1000
     );
 
-    // El descanso debe terminar en o antes del final esperado (considerando tolerancia)
     const endOk = breakEnd <= new Date(
       windowEnd.getTime() + policy.endTolerance * 60 * 1000
     );

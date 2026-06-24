@@ -28,19 +28,20 @@ export default function AdminFichadas() {
     try {
       setError(null);
       const [fichadasData, empleadosData] = await Promise.all([
-        api.get('/api/punch'),
+        api.get('/punch'),
         api.get('/empleados')
       ]);
       setPunchEvents(fichadasData as PunchEvent[]);
       setEmpleados(empleadosData as any[]);
 
       // Cargar interpretaciones para cada día con eventos
+      const fichadasArray = fichadasData as PunchEvent[];
       const daysWithEvents = new Set(
-        fichadasData.map((e: any) => e.timestamp?.split('T')[0])
+        fichadasArray.map((e) => e.timestamp?.split('T')[0])
       );
 
       for (const day of daysWithEvents) {
-        const empleadoId = fichadasData.find((e: any) => e.timestamp?.startsWith(day))?.idEmpleado;
+        const empleadoId = fichadasArray.find((e) => e.timestamp?.startsWith(day as string))?.idEmpleado;
         if (empleadoId && day) {
           try {
             const interpretation = await attendanceApi.getDayInterpretation(empleadoId, day);
@@ -340,3 +341,4 @@ export default function AdminFichadas() {
       )}
     </div>
   );
+}
