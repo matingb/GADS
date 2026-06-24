@@ -1254,7 +1254,7 @@ Deno.serve(async (req) => {
     if (req.method === "GET" && path === "/dashboard") return await getDashboard();
 
     if (path.startsWith("/punch") || path.startsWith("/attendance") || path.startsWith("/break-policies")) {
-      return withCors(await handleAttendanceRequest(req, path));
+      return withCors(await handleAttendanceRequest(req, path, auth.userId));
     }
 
     return error("Ruta no encontrada.", 404);

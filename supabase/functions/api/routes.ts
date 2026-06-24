@@ -63,7 +63,7 @@ function errorResponse(
  * 
  * Record a punch event (IN or OUT) and generate day interpretation
  */
-export async function recordPunch(req: Request): Promise<Response> {
+export async function recordPunch(req: Request, userId: string): Promise<Response> {
   try {
     // Validar método
     if (req.method !== 'POST') {
@@ -87,9 +87,6 @@ export async function recordPunch(req: Request): Promise<Response> {
         details: { valid: ['IN', 'OUT'] },
       }, 400);
     }
-
-    // Obtener user ID del token (simplificado)
-    const userId = 'system'; // En producción, extraer del JWT
 
     // Ejecutar use case
     const result = await useCases.recordDailyPunch(
@@ -211,7 +208,7 @@ export async function getMonthInterpretations(req: Request): Promise<Response> {
  * Query params:
  * - reprocessFrom: YYYY-MM-DD (optional, defaults to 30 days ago)
  */
-export async function updateBreakPolicy(req: Request): Promise<Response> {
+export async function updateBreakPolicy(req: Request, userId: string): Promise<Response> {
   try {
     // Validar método
     if (req.method !== 'PUT') {
@@ -236,9 +233,6 @@ export async function updateBreakPolicy(req: Request): Promise<Response> {
     if (!body.mode) {
       return jsonResponse({ error: 'Missing required field: mode' }, 400);
     }
-
-    // Obtener user ID del token
-    const userId = 'system';
 
     // Parsear fecha de reprocessing
     let reprocessFromDate: Date | undefined = undefined;
@@ -319,12 +313,12 @@ export async function getPunches(req: Request): Promise<Response> {
 /**
  * Router
  */
-export async function handleRequest(req: Request, cleanPath: string): Promise<Response> {
+export async function handleRequest(req: Request, cleanPath: string, userId: string): Promise<Response> {
   const url = new URL(req.url);
 
   // POST /punch
   if (req.method === 'POST' && cleanPath === '/punch') {
-    return recordPunch(req);
+    return recordPunch(req, userId);
   }
 
   // GET /punch
@@ -344,7 +338,7 @@ export async function handleRequest(req: Request, cleanPath: string): Promise<Re
 
   // PUT /break-policies/:scheduleId
   if (req.method === 'PUT' && cleanPath.match(/^\/break-policies\/\d+$/)) {
-    return updateBreakPolicy(req);
+    return updateBreakPolicy(req, userId);
   }
 
   // 404
