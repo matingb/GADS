@@ -1055,11 +1055,45 @@ async function getDashboard(): Promise<Response> {
     })
     .reduce((acc, n) => acc + (n.cantidad_minutos ?? 0), 0);
 
+  // Para calcular ausencias hay que saber qué empleados activos deben trabajar cada día
+  // según su horario asignado vigente. Un empleado solo es "ausente" si ese día le tocaba
+  // trabajar (no es descanso) y no fichó.
+  const [{ data: empleadosActivosRows }, { data: asignacionesRows }] = await Promise.all([
+    adminClient.from("empleados").select("id_empleado").eq("estado", "ACTIVO"),
+    adminClient.from("asignaciones_horario").select("id_empleado,id_horario").is("fecha_hasta", null),
+  ]);
+
+  const empleadoIdsActivos = (empleadosActivosRows ?? []).map((e) => e.id_empleado);
+  const horarioByEmpleado = new Map<number, number>(
+    (asignacionesRows ?? []).map((a) => [a.id_empleado, a.id_horario]),
+  );
+
+  const horarioIds = [...new Set(horarioByEmpleado.values())];
+  const { data: detallesRows } = horarioIds.length
+    ? await adminClient
+        .from("horario_detalles")
+        .select("id_horario,dia_semana,es_descanso")
+        .in("id_horario", horarioIds)
+        .eq("numero_semana", 1)
+    : { data: [] as { id_horario: number; dia_semana: number; es_descanso: boolean }[] };
+
+  // id_horario -> set de dias laborables (1=Lunes ... 7=Domingo, igual que horario_detalles)
+  const diasLaborablesByHorario = new Map<number, Set<number>>();
+  for (const det of detallesRows ?? []) {
+    if (det.es_descanso) continue;
+    if (!diasLaborablesByHorario.has(det.id_horario)) diasLaborablesByHorario.set(det.id_horario, new Set());
+    diasLaborablesByHorario.get(det.id_horario)!.add(det.dia_semana);
+  }
+
   const asistenciaSemanal: { name: string; fecha: string; presentes: number; ausentes: number }[] = [];
   for (let i = 6; i >= 0; i -= 1) {
     const d = new Date(now);
     d.setDate(now.getDate() - i);
     const iso = d.toISOString().slice(0, 10);
+
+    // Día de semana ISO (1=Lunes ... 7=Domingo) coherente con la fecha (iso) consultada
+    const utcDow = new Date(`${iso}T12:00:00Z`).getUTCDay(); // 0=Domingo ... 6=Sábado
+    const diaSemana = utcDow === 0 ? 7 : utcDow;
 
     const { data: presentesRows } = await adminClient
       .from("punch_events")
@@ -1068,13 +1102,21 @@ async function getDashboard(): Promise<Response> {
       .gte("timestamp", `${iso}T00:00:00`)
       .lte("timestamp", `${iso}T23:59:59.999`);
 
-    const presentes = new Set((presentesRows ?? []).map((r) => r.id_empleado)).size;
+    const presentesSet = new Set((presentesRows ?? []).map((r) => r.id_empleado));
+
+    // Solo cuentan como ausentes los empleados que debían trabajar ese día y no ficharon.
+    const ausentes = empleadoIdsActivos.filter((id) => {
+      const idHorario = horarioByEmpleado.get(id);
+      if (idHorario === undefined) return false; // sin horario asignado => no se cuenta
+      const debeTrabajar = diasLaborablesByHorario.get(idHorario)?.has(diaSemana) ?? false;
+      return debeTrabajar && !presentesSet.has(id);
+    }).length;
 
     asistenciaSemanal.push({
-      name: d.toLocaleDateString("es-AR", { weekday: "short" }),
+      name: new Date(`${iso}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "short", timeZone: "UTC" }),
       fecha: iso,
-      presentes,
-      ausentes: Math.max((empleadosActivos ?? 0) - presentes, 0),
+      presentes: presentesSet.size,
+      ausentes,
     });
   }
 
